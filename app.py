@@ -579,7 +579,139 @@ def popular_basico():
             'error': str(e)
         }), 500
 
-# Endpoints públicos para XML/JSON
+# Rota de debug detalhado
+@app.route('/admin/debug-inserir')
+@login_required
+def debug_inserir():
+    """Debug detalhado da inserção"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        debug_info = {
+            'step1_conexao': 'OK',
+            'step2_tabela_existe': False,
+            'step3_estrutura': [],
+            'step4_teste_insert': {},
+            'step5_count_atual': 0
+        }
+        
+        # Verificar se tabela existe
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_name = 'integrador'
+            )
+        """)
+        debug_info['step2_tabela_existe'] = cursor.fetchone()[0]
+        
+        if debug_info['step2_tabela_existe']:
+            # Verificar estrutura da tabela
+            cursor.execute("""
+                SELECT column_name, data_type, is_nullable 
+                FROM information_schema.columns 
+                WHERE table_name = 'integrador'
+                ORDER BY ordinal_position
+            """)
+            debug_info['step3_estrutura'] = cursor.fetchall()
+            
+            # Contar registros atuais
+            cursor.execute('SELECT COUNT(*) FROM integrador')
+            debug_info['step5_count_atual'] = cursor.fetchone()[0]
+            
+            # Teste de inserção individual
+            try:
+                cursor.execute('''
+                    INSERT INTO integrador (
+                        tipo, marca_id, marca_nome, modelo_id, modelo_nome,
+                        versao_id, versao_nome, ano_modelo, combustivel, motor, categoria
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''', ('carros', 999, 'TESTE', 999, 'MODELO TESTE', '999-1', 'VERSAO TESTE', 2025, 'FLEX', '1.0', 'TESTE'))
+                
+                conn.commit()
+                debug_info['step4_teste_insert'] = {'success': True, 'error': None}
+                
+                # Contar novamente
+                cursor.execute('SELECT COUNT(*) FROM integrador')
+                debug_info['step5_count_final'] = cursor.fetchone()[0]
+                
+            except Exception as e:
+                conn.rollback()
+                debug_info['step4_teste_insert'] = {'success': False, 'error': str(e)}
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify(debug_info)
+        
+    except Exception as e:
+        return jsonify({'error_geral': str(e)})
+
+@app.route('/admin/criar-tabela')
+@login_required
+def criar_tabela():
+    """Força criação da tabela integrador"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Dropar tabela se existir (cuidado!)
+        cursor.execute('DROP TABLE IF EXISTS integrador CASCADE')
+        
+        # Criar tabela do zero
+        cursor.execute('''
+            CREATE TABLE integrador (
+                id SERIAL PRIMARY KEY,
+                tipo VARCHAR(10) NOT NULL,
+                marca_id INTEGER,
+                marca_nome VARCHAR(100),
+                modelo_id INTEGER,
+                modelo_nome VARCHAR(200),
+                versao_id VARCHAR(50),
+                versao_nome VARCHAR(300),
+                ano_modelo INTEGER,
+                combustivel VARCHAR(50),
+                motor VARCHAR(100),
+                portas INTEGER,
+                categoria VARCHAR(100),
+                cilindrada VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Inserir dados de teste
+        cursor.execute('''
+            INSERT INTO integrador (
+                tipo, marca_id, marca_nome, modelo_id, modelo_nome,
+                versao_id, versao_nome, ano_modelo, combustivel, motor, categoria
+            ) VALUES 
+            ('carros', 59, 'Volkswagen', 5940, 'Gol', '2020-1', 'Gol 1.0', 2020, 'Flex', '1.0', 'Hatch'),
+            ('carros', 22, 'Chevrolet', 7328, 'Onix', '2020-1', 'Onix 1.0', 2020, 'Flex', '1.0', 'Hatch'),
+            ('carros', 26, 'Ford', 5035, 'Ka', '2020-1', 'Ka 1.0', 2020, 'Flex', '1.0', 'Hatch'),
+            ('motos', 26, 'Honda', 1446, 'CG 160', '2020-1', 'CG 160 Titan', 2020, 'Gasolina', '160cc', 'Street'),
+            ('motos', 52, 'Yamaha', 2467, 'Factor 125', '2020-1', 'Factor 125i', 2020, 'Gasolina', '125cc', 'Street')
+        ''')
+        
+        conn.commit()
+        
+        # Verificar se inseriu
+        cursor.execute('SELECT COUNT(*) FROM integrador')
+        total = cursor.fetchone()[0]
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Tabela recriada e populada com {total} registros',
+            'total_inseridos': total
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 @app.route('/xml')
 def xml_endpoint():
     try:
