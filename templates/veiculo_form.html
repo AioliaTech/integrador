@@ -1,1 +1,620 @@
+{% extends "base.html" %}
 
+{% block title %}{% if veiculo %}Editar{% else %}Novo{% endif %} Veículo - Integrador{% endblock %}
+
+{% block content %}
+<div class="bg-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    <a href="{{ url_for('dashboard') }}" class="text-orange hover:text-orange-dark mr-4 transition-colors">
+                        <i class="fas fa-arrow-left text-xl hover-scale"></i>
+                    </a>
+                    <div class="bg-orange rounded-lg p-2 mr-3">
+                        <i class="fas fa-{% if veiculo %}edit{% else %}plus{% endif %} text-white"></i>
+                    </div>
+                    <h1 class="text-xl font-bold text-gray-800">
+                        {% if veiculo %}Editar Veículo{% else %}Novo Veículo{% endif %}
+                    </h1>
+                </div>
+                <a href="{{ url_for('logout') }}" 
+                   class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-all hover-scale flex items-center">
+                    <i class="fas fa-sign-out-alt mr-2"></i>Sair
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Progress Bar -->
+    <div class="bg-white border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="py-3">
+                <div class="flex items-center space-x-4 text-sm">
+                    <div id="step1" class="flex items-center text-orange">
+                        <div class="w-6 h-6 bg-orange rounded-full flex items-center justify-center text-white text-xs mr-2">1</div>
+                        Tipo e Marca
+                    </div>
+                    <div class="w-8 border-t border-gray-300"></div>
+                    <div id="step2" class="flex items-center text-gray-400">
+                        <div class="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-white text-xs mr-2">2</div>
+                        Modelo e Versão
+                    </div>
+                    <div class="w-8 border-t border-gray-300"></div>
+                    <div id="step3" class="flex items-center text-gray-400">
+                        <div class="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-white text-xs mr-2">3</div>
+                        Detalhes
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <form id="veiculoForm" method="POST" enctype="multipart/form-data" class="bg-white rounded-xl shadow-lg p-8">
+            {% if veiculo %}
+                <input type="hidden" name="id" value="{{ veiculo.id }}">
+                <input type="hidden" id="fotosExistentes" name="fotos_existentes" value="{{ veiculo.fotos|tojson if veiculo.fotos else '[]' }}">
+            {% endif %}
+
+            <!-- Seção 1: Tipo e Marca -->
+            <div class="mb-8">
+                <h3 class="text-lg font-semibold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-car mr-3 text-orange"></i>Informações Básicas
+                </h3>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Tipo -->
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-2">
+                            <i class="fas fa-tag mr-2 text-orange"></i>Tipo de Veículo
+                        </label>
+                        <select name="tipo" id="tipo" required 
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange focus:ring-2 focus:ring-orange focus:ring-opacity-20 transition-all">
+                            <option value="">Selecione o tipo</option>
+                            <option value="carros" {% if veiculo and veiculo.tipo == 'carros' %}selected{% endif %}>
+                                🚗 Carro
+                            </option>
+                            <option value="motos" {% if veiculo and veiculo.tipo == 'motos' %}selected{% endif %}>
+                                🏍️ Moto
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Marca -->
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-2">
+                            <i class="fas fa-industry mr-2 text-orange"></i>Marca
+                        </label>
+                        <select name="marca_id" id="marca" required disabled
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange focus:ring-2 focus:ring-orange focus:ring-opacity-20 transition-all disabled:bg-gray-100">
+                            <option value="">Selecione a marca</option>
+                        </select>
+                        <input type="hidden" name="marca_nome" id="marcaNome">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Seção 2: Modelo e Versão -->
+            <div class="mb-8">
+                <h3 class="text-lg font-semibold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-car-side mr-3 text-orange"></i>Modelo e Especificações
+                </h3>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Modelo -->
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-2">
+                            <i class="fas fa-car-side mr-2 text-orange"></i>Modelo
+                        </label>
+                        <select name="modelo_id" id="modelo" required disabled
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange focus:ring-2 focus:ring-orange focus:ring-opacity-20 transition-all disabled:bg-gray-100">
+                            <option value="">Selecione o modelo</option>
+                        </select>
+                        <input type="hidden" name="modelo_nome" id="modeloNome">
+                    </div>
+
+                    <!-- Versão -->
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-2">
+                            <i class="fas fa-cog mr-2 text-orange"></i>Versão
+                        </label>
+                        <select name="versao_id" id="versao" required disabled
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange focus:ring-2 focus:ring-orange focus:ring-opacity-20 transition-all disabled:bg-gray-100">
+                            <option value="">Selecione a versão</option>
+                        </select>
+                        <input type="hidden" name="versao_nome" id="versaoNome">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Seção 3: Dados do Veículo -->
+            <div id="dadosVeiculo" class="{% if not veiculo %}hidden{% endif %}">
+                <h3 class="text-lg font-semibold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-info-circle mr-3 text-orange"></i>Detalhes do Veículo
+                </h3>
+
+                <!-- Dados Técnicos -->
+                <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                    <h4 class="text-md font-semibold text-gray-700 mb-4">Dados Técnicos</h4>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                <i class="fas fa-calendar mr-1 text-orange"></i>Ano Modelo
+                            </label>
+                            <input type="number" name="ano_modelo" id="anoModelo" required disabled
+                                   value="{{ veiculo.ano_modelo if veiculo else '' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                        </div>
+
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                <i class="fas fa-calendar-check mr-1 text-orange"></i>Ano Fabricação
+                            </label>
+                            <input type="number" name="ano_fabricacao" required disabled
+                                   value="{{ veiculo.ano_fabricacao if veiculo else '' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                        </div>
+
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                <i class="fas fa-tachometer-alt mr-1 text-orange"></i>Quilometragem
+                            </label>
+                            <input type="number" name="km" required disabled placeholder="Ex: 50000"
+                                   value="{{ veiculo.km if veiculo else '' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                        </div>
+
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                <i class="fas fa-palette mr-1 text-orange"></i>Cor
+                            </label>
+                            <input type="text" name="cor" required disabled placeholder="Ex: Branco"
+                                   value="{{ veiculo.cor if veiculo else '' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                        </div>
+
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                <i class="fas fa-gas-pump mr-1 text-orange"></i>Combustível
+                            </label>
+                            <input type="text" name="combustivel" id="combustivel" readonly disabled
+                                   value="{{ veiculo.combustivel if veiculo else '' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100">
+                        </div>
+
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                <i class="fas fa-cogs mr-1 text-orange"></i>Câmbio
+                            </label>
+                            <select name="cambio" required disabled
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                                <option value="">Selecione</option>
+                                <option value="Manual" {% if veiculo and veiculo.cambio == 'Manual' %}selected{% endif %}>Manual</option>
+                                <option value="Automático" {% if veiculo and veiculo.cambio == 'Automático' %}selected{% endif %}>Automático</option>
+                                <option value="CVT" {% if veiculo and veiculo.cambio == 'CVT' %}selected{% endif %}>CVT</option>
+                                <option value="Automático Sequencial" {% if veiculo and veiculo.cambio == 'Automático Sequencial' %}selected{% endif %}>Automático Sequencial</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                <i class="fas fa-engine mr-1 text-orange"></i>Motor
+                            </label>
+                            <input type="text" name="motor" id="motor" readonly disabled
+                                   value="{{ veiculo.motor if veiculo else '' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100">
+                        </div>
+
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                <i class="fas fa-door-open mr-1 text-orange"></i>Portas
+                            </label>
+                            <input type="number" name="portas" id="portas" readonly disabled
+                                   value="{{ veiculo.portas if veiculo else '' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100">
+                        </div>
+
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                <i class="fas fa-tags mr-1 text-orange"></i>Categoria
+                            </label>
+                            <input type="text" name="categoria" required disabled placeholder="Ex: Sedã, SUV, etc."
+                                   value="{{ veiculo.categoria if veiculo else '' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                        </div>
+
+                        <div id="cilindradaDiv" class="{% if not veiculo or veiculo.tipo != 'motos' %}hidden{% endif %}">
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                <i class="fas fa-motorcycle mr-1 text-orange"></i>Cilindrada
+                            </label>
+                            <input type="text" name="cilindrada" disabled placeholder="Ex: 250cc"
+                                   value="{{ veiculo.cilindrada if veiculo else '' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dados Comerciais -->
+                <div class="bg-orange-50 rounded-lg p-6 mb-6">
+                    <h4 class="text-md font-semibold text-gray-700 mb-4">Dados Comerciais</h4>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                <i class="fas fa-dollar-sign mr-1 text-orange"></i>Preço (R$)
+                            </label>
+                            <input type="number" step="0.01" name="preco" required disabled placeholder="Ex: 45000.00"
+                                   value="{{ veiculo.preco if veiculo else '' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload de Fotos -->
+                <div class="bg-blue-50 rounded-lg p-6 mb-6">
+                    <h4 class="text-md font-semibold text-gray-700 mb-4 flex items-center">
+                        <i class="fas fa-images mr-2 text-orange"></i>Galeria de Fotos
+                    </h4>
+                    
+                    <div class="mb-4">
+                        <input type="file" name="fotos" id="fotosInput" multiple accept="image/*" disabled
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                        <p class="text-sm text-gray-500 mt-2">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Selecione múltiplas imagens (JPG, PNG). A primeira será a foto principal.
+                        </p>
+                    </div>
+                    
+                    <!-- Preview de novas fotos -->
+                    <div id="previewNovasFotos" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 hidden">
+                        <h5 class="col-span-full text-sm font-semibold text-gray-700">Novas fotos:</h5>
+                    </div>
+                    
+                    <!-- Fotos existentes -->
+                    {% if veiculo and veiculo.fotos %}
+                    <div class="mb-4">
+                        <h5 class="text-sm font-semibold text-gray-700 mb-3">Fotos atuais:</h5>
+                        <div id="fotosAtuais" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {% for foto in veiculo.fotos %}
+                            <div class="relative group" data-foto="{{ foto }}">
+                                <img src="{{ foto }}" alt="Foto do veículo" class="w-full h-32 object-cover rounded-lg shadow">
+                                <div class="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                                    <button type="button" onclick="removerFoto('{{ foto }}')"
+                                            class="bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600 transition-colors">
+                                        <i class="fas fa-trash text-xs"></i>
+                                    </button>
+                                </div>
+                                {% if loop.first %}
+                                <div class="absolute top-2 left-2">
+                                    <span class="bg-orange text-white text-xs px-2 py-1 rounded-full">Principal</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Botões de Ação -->
+                <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 pt-6 border-t">
+                    <button type="submit" 
+                            class="flex-1 bg-orange text-white px-6 py-4 rounded-lg font-semibold hover:bg-orange-dark transition-all hover-scale flex items-center justify-center">
+                        <i class="fas fa-save mr-2"></i>
+                        {% if veiculo %}Atualizar Veículo{% else %}Cadastrar Veículo{% endif %}
+                    </button>
+                    
+                    <a href="{{ url_for('dashboard') }}" 
+                       class="flex-1 bg-gray-500 text-white px-6 py-4 rounded-lg font-semibold hover:bg-gray-600 transition-all text-center flex items-center justify-center">
+                        <i class="fas fa-times mr-2"></i>Cancelar
+                    </a>
+                </div>
+            </div>
+        </form>
+    </main>
+</div>
+
+{% block scripts %}
+<script>
+let fotosExistentes = {% if veiculo and veiculo.fotos %}{{ veiculo.fotos|tojson }}{% else %}[]{% endif %};
+
+$(document).ready(function() {
+    // Preview de novas fotos
+    $('#fotosInput').change(function() {
+        const files = this.files;
+        const preview = $('#previewNovasFotos');
+        
+        // Limpar preview anterior
+        preview.find('.preview-item').remove();
+        
+        if (files.length > 0) {
+            preview.removeClass('hidden');
+            
+            Array.from(files).forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const previewItem = $(`
+                        <div class="preview-item relative">
+                            <img src="${e.target.result}" alt="Preview" class="w-full h-32 object-cover rounded-lg shadow">
+                            ${index === 0 ? '<div class="absolute top-2 left-2"><span class="bg-orange text-white text-xs px-2 py-1 rounded-full">Principal</span></div>' : ''}
+                        </div>
+                    `);
+                    preview.append(previewItem);
+                };
+                reader.readAsDataURL(file);
+            });
+        } else {
+            preview.addClass('hidden');
+        }
+    });
+
+    // Eventos de mudança nos selects
+    $('#tipo').change(function() {
+        const tipo = $(this).val();
+        updateProgress(1);
+        
+        if (tipo) {
+            carregarMarcas(tipo);
+            $('#marca').prop('disabled', false);
+            
+            // Mostrar/ocultar campo cilindrada
+            if (tipo === 'motos') {
+                $('#cilindradaDiv').removeClass('hidden');
+            } else {
+                $('#cilindradaDiv').addClass('hidden');
+            }
+        } else {
+            resetForm();
+        }
+    });
+
+    $('#marca').change(function() {
+        const marcaId = $(this).val();
+        const marcaNome = $(this).find('option:selected').text();
+        $('#marcaNome').val(marcaNome);
+        
+        if (marcaId) {
+            updateProgress(2);
+            carregarModelos($('#tipo').val(), marcaId);
+            $('#modelo').prop('disabled', false);
+        } else {
+            resetModelos();
+        }
+    });
+
+    $('#modelo').change(function() {
+        const modeloId = $(this).val();
+        const modeloNome = $(this).find('option:selected').text();
+        $('#modeloNome').val(modeloNome);
+        
+        if (modeloId) {
+            carregarAnos($('#tipo').val(), $('#marca').val(), modeloId);
+            $('#versao').prop('disabled', false);
+        } else {
+            resetVersoes();
+        }
+    });
+
+    $('#versao').change(function() {
+        const anoId = $(this).val();
+        const versaoNome = $(this).find('option:selected').text();
+        $('#versaoNome').val(versaoNome);
+        
+        if (anoId) {
+            updateProgress(3);
+            carregarDetalhes($('#tipo').val(), $('#marca').val(), $('#modelo').val(), anoId);
+            liberarCampos();
+        } else {
+            bloquearCampos();
+        }
+    });
+
+    // Se estiver editando, carregar dados
+    {% if veiculo %}
+        setTimeout(function() {
+            $('#tipo').trigger('change');
+            setTimeout(function() {
+                $('#marca').val({{ veiculo.marca_id }}).trigger('change');
+                setTimeout(function() {
+                    $('#modelo').val({{ veiculo.modelo_id }}).trigger('change');
+                    setTimeout(function() {
+                        // Buscar o código do ano correspondente
+                        $('#versao').val('{{ veiculo.ano_modelo }}-1');
+                        updateProgress(3);
+                        liberarCampos();
+                    }, 1000);
+                }, 1000);
+            }, 1000);
+        }, 500);
+    {% endif %}
+});
+
+function updateProgress(step) {
+    for (let i = 1; i <= 3; i++) {
+        const stepEl = $(`#step${i}`);
+        if (i <= step) {
+            stepEl.removeClass('text-gray-400').addClass('text-orange');
+            stepEl.find('div').removeClass('bg-gray-300').addClass('bg-orange');
+        } else {
+            stepEl.removeClass('text-orange').addClass('text-gray-400');
+            stepEl.find('div').removeClass('bg-orange').addClass('bg-gray-300');
+        }
+    }
+}
+
+function carregarMarcas(tipo) {
+    showLoading();
+    
+    $.get(`/api/marcas/${tipo}`)
+        .done(function(marcas) {
+            let options = '<option value="">Selecione a marca</option>';
+            marcas.forEach(function(marca) {
+                options += `<option value="${marca.codigo}">${marca.nome}</option>`;
+            });
+            $('#marca').html(options);
+        })
+        .fail(function() {
+            alert('Erro ao carregar marcas');
+        })
+        .always(function() {
+            hideLoading();
+        });
+}
+
+function carregarModelos(tipo, marcaId) {
+    showLoading();
+    
+    $.get(`/api/modelos/${tipo}/${marcaId}`)
+        .done(function(modelos) {
+            let options = '<option value="">Selecione o modelo</option>';
+            modelos.forEach(function(modelo) {
+                options += `<option value="${modelo.codigo}">${modelo.nome}</option>`;
+            });
+            $('#modelo').html(options);
+        })
+        .fail(function() {
+            alert('Erro ao carregar modelos');
+        })
+        .always(function() {
+            hideLoading();
+        });
+}
+
+function carregarAnos(tipo, marcaId, modeloId) {
+    showLoading();
+    
+    $.get(`/api/anos/${tipo}/${marcaId}/${modeloId}`)
+        .done(function(anos) {
+            let options = '<option value="">Selecione a versão</option>';
+            anos.forEach(function(ano) {
+                options += `<option value="${ano.codigo}">${ano.nome}</option>`;
+            });
+            $('#versao').html(options);
+        })
+        .fail(function() {
+            alert('Erro ao carregar versões');
+        })
+        .always(function() {
+            hideLoading();
+        });
+}
+
+function carregarDetalhes(tipo, marcaId, modeloId, anoId) {
+    showLoading();
+    
+    $.get(`/api/detalhes/${tipo}/${marcaId}/${modeloId}/${anoId}`)
+        .done(function(detalhes) {
+            $('#anoModelo').val(detalhes.AnoModelo);
+            $('#combustivel').val(detalhes.Combustivel);
+            $('#motor').val(detalhes.SiglaCombustivel);
+            
+            // Extrair número de portas se disponível
+            if (detalhes.Modelo && detalhes.Modelo.includes('Portas')) {
+                const match = detalhes.Modelo.match(/(\d+)\s*Portas?/i);
+                if (match) {
+                    $('#portas').val(match[1]);
+                }
+            }
+        })
+        .fail(function() {
+            alert('Erro ao carregar detalhes');
+        })
+        .always(function() {
+            hideLoading();
+        });
+}
+
+function liberarCampos() {
+    $('#dadosVeiculo').removeClass('hidden');
+    $('#dadosVeiculo input, #dadosVeiculo select').not('[readonly]').prop('disabled', false);
+    
+    // Animação suave
+    $('#dadosVeiculo').hide().fadeIn(500);
+}
+
+function bloquearCampos() {
+    $('#dadosVeiculo').addClass('hidden');
+    $('#dadosVeiculo input, #dadosVeiculo select').prop('disabled', true);
+    updateProgress(2);
+}
+
+function resetForm() {
+    $('#marca, #modelo, #versao').prop('disabled', true).html('<option value="">Selecione</option>');
+    $('#dadosVeiculo').addClass('hidden');
+    updateProgress(1);
+}
+
+function resetModelos() {
+    $('#modelo, #versao').prop('disabled', true).html('<option value="">Selecione</option>');
+    $('#dadosVeiculo').addClass('hidden');
+    updateProgress(1);
+}
+
+function resetVersoes() {
+    $('#versao').prop('disabled', true).html('<option value="">Selecione</option>');
+    $('#dadosVeiculo').addClass('hidden');
+    updateProgress(2);
+}
+
+function removerFoto(fotoUrl) {
+    if (confirm('Remover esta foto?')) {
+        fotosExistentes = fotosExistentes.filter(foto => foto !== fotoUrl);
+        $('#fotosExistentes').val(JSON.stringify(fotosExistentes));
+        
+        // Remover visualmente com animação
+        $(`[data-foto="${fotoUrl}"]`).fadeOut(300, function() {
+            $(this).remove();
+            
+            // Reorganizar badges "Principal"
+            $('#fotosAtuais .group').each(function(index) {
+                const badge = $(this).find('.bg-orange');
+                if (index === 0 && badge.length === 0) {
+                    $(this).prepend('<div class="absolute top-2 left-2"><span class="bg-orange text-white text-xs px-2 py-1 rounded-full">Principal</span></div>');
+                } else if (index > 0 && badge.length > 0) {
+                    badge.parent().remove();
+                }
+            });
+        });
+    }
+}
+
+// Submit do formulário
+$('#veiculoForm').submit(function(e) {
+    showLoading();
+    
+    // Validação básica
+    const requiredFields = ['tipo', 'marca_id', 'modelo_id', 'versao_id', 'ano_fabricacao', 'km', 'cor', 'cambio', 'categoria', 'preco'];
+    let isValid = true;
+    
+    requiredFields.forEach(function(field) {
+        const value = $(`[name="${field}"]`).val();
+        if (!value || value.trim() === '') {
+            isValid = false;
+            $(`[name="${field}"]`).addClass('border-red-500');
+        } else {
+            $(`[name="${field}"]`).removeClass('border-red-500');
+        }
+    });
+    
+    if (!isValid) {
+        hideLoading();
+        alert('Por favor, preencha todos os campos obrigatórios');
+        e.preventDefault();
+        return false;
+    }
+});
+
+// Validação em tempo real
+$('input[required], select[required]').on('blur', function() {
+    if ($(this).val().trim() === '') {
+        $(this).addClass('border-red-500');
+    } else {
+        $(this).removeClass('border-red-500');
+    }
+});
+</script>
+{% endblock %}
