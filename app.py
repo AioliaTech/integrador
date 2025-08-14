@@ -536,83 +536,102 @@ def api_detalhes(tipo, marca_id, modelo_id, ano_codigo):
     conn.close()
     return jsonify(detalhes)
 
-# Rota para popular cache da FIPE (versão assíncrona)
+# Rota para popular cache da FIPE (versão corrigida)
 @app.route('/admin/popular-fipe')
 @login_required
 def popular_fipe():
-    """Popula a tabela integrador com dados da FIPE - versão rápida"""
+    """Popula a tabela integrador com dados da FIPE - versão corrigida"""
     import threading
     
     def popular_em_background():
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        tipos = ['carros', 'motos']
-        total_inseridos = 0
-        
-        # Marcas principais para não sobrecarregar
-        marcas_principais = {
-            'carros': ['Volkswagen', 'Chevrolet', 'Ford', 'Fiat', 'Toyota', 'Honda', 'Hyundai'],
-            'motos': ['Honda', 'Yamaha', 'Suzuki', 'Kawasaki', 'BMW']
-        }
-        
-        for tipo in tipos:
-            print(f"[BACKGROUND] Populando {tipo}...")
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
             
-            # Buscar marcas
-            marcas = FipeAPI.get_marcas(tipo)
+            tipos = ['carros', 'motos']
+            total_inseridos = 0
             
-            # Filtrar apenas marcas principais
-            if tipo in marcas_principais:
-                marcas_filtradas = [m for m in marcas if any(principal.lower() in m['nome'].lower() 
-                                                          for principal in marcas_principais[tipo])]
-            else:
-                marcas_filtradas = marcas[:5]  # Primeiras 5 se não estiver na lista
+            # Marcas principais para não sobrecarregar
+            marcas_principais = {
+                'carros': ['Volkswagen', 'Chevrolet', 'Ford', 'Fiat', 'Toyota', 'Honda', 'Hyundai'],
+                'motos': ['Honda', 'Yamaha', 'Suzuki', 'Kawasaki', 'BMW']
+            }
             
-            for marca in marcas_filtradas:
-                print(f"[BACKGROUND] Processando {marca['nome']}")
+            for tipo in tipos:
+                print(f"[BACKGROUND] Populando {tipo}...")
                 
-                # Buscar modelos (limitar a 10 por marca)
-                modelos = FipeAPI.get_modelos(tipo, marca['codigo'])[:10]
+                # Buscar marcas
+                marcas = FipeAPI.get_marcas(tipo)
                 
-                for modelo in modelos:
-                    # Buscar anos (limitar a 3 por modelo)
-                    anos = FipeAPI.get_anos(tipo, marca['codigo'], modelo['codigo'])[:3]
+                # Filtrar apenas marcas principais
+                if tipo in marcas_principais:
+                    marcas_filtradas = [m for m in marcas if any(principal.lower() in m['nome'].lower() 
+                                                              for principal in marcas_principais[tipo])]
+                else:
+                    marcas_filtradas = marcas[:5]  # Primeiras 5 se não estiver na lista
+                
+                for marca in marcas_filtradas:
+                    print(f"[BACKGROUND] Processando {marca['nome']}")
                     
-                    for ano in anos:
-                        try:
-                            # Buscar detalhes
-                            detalhes = FipeAPI.get_detalhes(tipo, marca['codigo'], modelo['codigo'], ano['codigo'])
-                            
-                            if detalhes:
-                                cursor.execute('''
-                                    INSERT INTO integrador (
-                                        tipo, marca_id, marca_nome, modelo_id, modelo_nome,
-                                        versao_id, versao_nome, ano_modelo, combustivel, motor, categoria
-                                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                    ON CONFLICT (tipo, marca_id, modelo_id, versao_id, ano_modelo) DO UPDATE SET
-                                        combustivel = EXCLUDED.combustivel,
-                                        motor = EXCLUDED.motor,
-                                        categoria = EXCLUDED.categoria
-                                ''', (
-                                    tipo, marca['codigo'], marca['nome'], modelo['codigo'], modelo['nome'],
-                                    detalhes.get('CodigoFipe', ano['codigo']), detalhes.get('Modelo', ano['nome']),
-                                    detalhes.get('AnoModelo', 2020), detalhes.get('Combustivel', ''),
-                                    detalhes.get('SiglaCombustivel', ''), detalhes.get('TipoVeiculo', '')
-                                ))
-                                total_inseridos += 1
+                    # Buscar modelos (limitar a 10 por marca)
+                    modelos = FipeAPI.get_modelos(tipo, marca['codigo'])[:10]
+                    
+                    for modelo in modelos:
+                        # Buscar anos (limitar a 3 por modelo)
+                        anos = FipeAPI.get_anos(tipo, marca['codigo'], modelo['codigo'])[:3]
+                        
+                        for ano in anos:
+                            try:
+                                # Cada inserção em uma transação separada
+                                conn.rollback()  # Reset da transação
                                 
-                                if total_inseridos % 20 == 0:
-                                    conn.commit()
-                                    print(f"[BACKGROUND] Inseridos: {total_inseridos}")
-                        except Exception as e:
-                            print(f"[BACKGROUND] Erro: {e}")
-                            continue
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        print(f"[BACKGROUND] Finalizado! Total: {total_inseridos}")
+                                # Buscar detalhes
+                                detalhes = FipeAPI.get_detalhes(tipo, marca['codigo'], modelo['codigo'], ano['codigo'])
+                                
+                                if detalhes and detalhes.get('AnoModelo'):
+                                    cursor.execute('''
+                                        INSERT INTO integrador (
+                                            tipo, marca_id, marca_nome, modelo_id, modelo_nome,
+                                            versao_id, versao_nome, ano_modelo, combustivel, motor, categoria
+                                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                        ON CONFLICT (tipo, marca_id, modelo_id, versao_id, ano_modelo) DO UPDATE SET
+                                            combustivel = EXCLUDED.combustivel,
+                                            motor = EXCLUDED.motor,
+                                            categoria = EXCLUDED.categoria
+                                    ''', (
+                                        tipo, 
+                                        int(marca['codigo']), 
+                                        marca['nome'][:100],  # Limitar tamanho
+                                        int(modelo['codigo']), 
+                                        modelo['nome'][:200],  # Limitar tamanho
+                                        detalhes.get('CodigoFipe', ano['codigo'])[:50], 
+                                        detalhes.get('Modelo', ano['nome'])[:300],  # Limitar tamanho
+                                        int(detalhes.get('AnoModelo', 2020)), 
+                                        detalhes.get('Combustivel', '')[:50],
+                                        detalhes.get('SiglaCombustivel', '')[:100], 
+                                        detalhes.get('TipoVeiculo', '')[:100]
+                                    ))
+                                    conn.commit()  # Commit individual
+                                    total_inseridos += 1
+                                    
+                                    if total_inseridos % 10 == 0:
+                                        print(f"[BACKGROUND] Inseridos: {total_inseridos}")
+                                        
+                            except Exception as e:
+                                print(f"[BACKGROUND] Erro ao inserir {ano.get('nome', 'desconhecido')}: {e}")
+                                conn.rollback()  # Rollback em caso de erro
+                                continue
+            
+            print(f"[BACKGROUND] Finalizado! Total: {total_inseridos}")
+            
+        except Exception as e:
+            print(f"[BACKGROUND] Erro geral: {e}")
+        finally:
+            try:
+                cursor.close()
+                conn.close()
+            except:
+                pass
     
     # Iniciar processo em background
     thread = threading.Thread(target=popular_em_background)
@@ -621,61 +640,102 @@ def popular_fipe():
     
     return jsonify({
         'success': True,
-        'message': 'Processo iniciado em background. Aguarde alguns minutos e verifique o status.',
+        'message': 'Processo iniciado em background com correção de erros. Aguarde alguns minutos.',
         'status': 'processando'
     })
 
-# Nova rota para popular apenas algumas marcas (mais rápido)
+# Versão básica corrigida também
 @app.route('/admin/popular-basico')
 @login_required
 def popular_basico():
-    """Popula apenas dados básicos - mais rápido"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Dados básicos para teste
-    dados_basicos = [
-        # Carros
-        ('carros', 59, 'Volkswagen', 5940, 'Gol', '2020-1', 'Gol 1.0', 2020, 'Flex', '1.0', 'Hatch'),
-        ('carros', 59, 'Volkswagen', 5965, 'Fox', '2019-1', 'Fox 1.0', 2019, 'Flex', '1.0', 'Hatch'),
-        ('carros', 22, 'Chevrolet', 7328, 'Onix', '2020-1', 'Onix 1.0', 2020, 'Flex', '1.0', 'Hatch'),
-        ('carros', 26, 'Ford', 5035, 'Ka', '2020-1', 'Ka 1.0', 2020, 'Flex', '1.0', 'Hatch'),
-        ('carros', 25, 'Fiat', 4828, 'Argo', '2020-1', 'Argo 1.0', 2020, 'Flex', '1.0', 'Hatch'),
+    """Popula apenas dados básicos - versão corrigida"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
         
-        # Motos
-        ('motos', 26, 'Honda', 1446, 'CG 160', '2020-1', 'CG 160 Titan', 2020, 'Gasolina', '160cc', 'Street'),
-        ('motos', 26, 'Honda', 1483, 'CB 600F', '2020-1', 'CB 600F Hornet', 2020, 'Gasolina', '600cc', 'Naked'),
-        ('motos', 52, 'Yamaha', 2467, 'Factor 125', '2020-1', 'Factor 125i', 2020, 'Gasolina', '125cc', 'Street'),
-        ('motos', 46, 'Suzuki', 2100, 'GSX-R 1000', '2020-1', 'GSX-R 1000', 2020, 'Gasolina', '1000cc', 'Esportiva'),
-    ]
-    
-    total_inseridos = 0
-    
-    for dados in dados_basicos:
-        try:
-            cursor.execute('''
-                INSERT INTO integrador (
-                    tipo, marca_id, marca_nome, modelo_id, modelo_nome,
-                    versao_id, versao_nome, ano_modelo, combustivel, motor, categoria
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (tipo, marca_id, modelo_id, versao_id, ano_modelo) DO UPDATE SET
-                    combustivel = EXCLUDED.combustivel,
-                    motor = EXCLUDED.motor,
-                    categoria = EXCLUDED.categoria
-            ''', dados)
-            total_inseridos += 1
-        except Exception as e:
-            print(f"Erro ao inserir: {e}")
-    
-    conn.commit()
-    cursor.close()
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'message': f'Cache básico populado com {total_inseridos} registros',
-        'total_inseridos': total_inseridos
-    })
+        # Dados básicos para teste - com tipos corretos
+        dados_basicos = [
+            # Carros
+            ('carros', 59, 'Volkswagen', 5940, 'Gol', '2020-1', 'Gol 1.0', 2020, 'Flex', '1.0', 'Hatch'),
+            ('carros', 59, 'Volkswagen', 5965, 'Fox', '2019-1', 'Fox 1.0', 2019, 'Flex', '1.0', 'Hatch'),
+            ('carros', 22, 'Chevrolet', 7328, 'Onix', '2020-1', 'Onix 1.0', 2020, 'Flex', '1.0', 'Hatch'),
+            ('carros', 26, 'Ford', 5035, 'Ka', '2020-1', 'Ka 1.0', 2020, 'Flex', '1.0', 'Hatch'),
+            ('carros', 25, 'Fiat', 4828, 'Argo', '2020-1', 'Argo 1.0', 2020, 'Flex', '1.0', 'Hatch'),
+            
+            # Motos
+            ('motos', 26, 'Honda', 1446, 'CG 160', '2020-1', 'CG 160 Titan', 2020, 'Gasolina', '160cc', 'Street'),
+            ('motos', 26, 'Honda', 1483, 'CB 600F', '2020-1', 'CB 600F Hornet', 2020, 'Gasolina', '600cc', 'Naked'),
+            ('motos', 52, 'Yamaha', 2467, 'Factor 125', '2020-1', 'Factor 125i', 2020, 'Gasolina', '125cc', 'Street'),
+            ('motos', 46, 'Suzuki', 2100, 'GSX-R 1000', '2020-1', 'GSX-R 1000', 2020, 'Gasolina', '1000cc', 'Esportiva'),
+        ]
+        
+        total_inseridos = 0
+        
+        for dados in dados_basicos:
+            try:
+                # Reset da transação antes de cada inserção
+                conn.rollback()
+                
+                cursor.execute('''
+                    INSERT INTO integrador (
+                        tipo, marca_id, marca_nome, modelo_id, modelo_nome,
+                        versao_id, versao_nome, ano_modelo, combustivel, motor, categoria
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (tipo, marca_id, modelo_id, versao_id, ano_modelo) DO UPDATE SET
+                        combustivel = EXCLUDED.combustivel,
+                        motor = EXCLUDED.motor,
+                        categoria = EXCLUDED.categoria
+                ''', dados)
+                
+                conn.commit()  # Commit individual
+                total_inseridos += 1
+                
+            except Exception as e:
+                print(f"Erro ao inserir dados básicos: {e}")
+                conn.rollback()
+                continue
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Cache básico populado com {total_inseridos} registros',
+            'total_inseridos': total_inseridos
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao popular cache básico: {str(e)}',
+            'total_inseridos': 0
+        }), 500
+
+# Rota para limpar cache em caso de problemas
+@app.route('/admin/limpar-cache')
+@login_required
+def limpar_cache():
+    """Limpa a tabela integrador"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM integrador')
+        conn.commit()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cache limpo com sucesso'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao limpar cache: {str(e)}'
+        }), 500
 
 # Rota para verificar status do cache
 @app.route('/admin/status-cache')
