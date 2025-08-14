@@ -1,4 +1,74 @@
-# app.py
+# Rota para recriar tabelas se necessário
+@app.route('/admin/init-db')
+@login_required
+def force_init_db():
+    """Força a criação das tabelas"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Criar tabela integrador se não existir
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS integrador (
+                id SERIAL PRIMARY KEY,
+                tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('carros', 'motos')),
+                marca_id INTEGER NOT NULL,
+                marca_nome VARCHAR(100) NOT NULL,
+                modelo_id INTEGER NOT NULL,
+                modelo_nome VARCHAR(200) NOT NULL,
+                versao_id VARCHAR(50) NOT NULL,
+                versao_nome VARCHAR(300) NOT NULL,
+                ano_modelo INTEGER NOT NULL,
+                combustivel VARCHAR(50),
+                motor VARCHAR(100),
+                portas INTEGER,
+                categoria VARCHAR(100),
+                cilindrada VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tipo, marca_id, modelo_id, versao_id, ano_modelo)
+            )
+        ''')
+        
+        # Criar tabela do cliente se não existir
+        client_table = os.environ.get('CLIENT_TABLE', 'integrador_cliente01')
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {client_table} (
+                id SERIAL PRIMARY KEY,
+                tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('carros', 'motos')),
+                marca_id INTEGER NOT NULL,
+                marca_nome VARCHAR(100) NOT NULL,
+                modelo_id INTEGER NOT NULL,
+                modelo_nome VARCHAR(200) NOT NULL,
+                versao_id VARCHAR(50) NOT NULL,
+                versao_nome VARCHAR(300) NOT NULL,
+                ano_modelo INTEGER NOT NULL,
+                ano_fabricacao INTEGER NOT NULL,
+                km INTEGER NOT NULL CHECK (km >= 0),
+                cor VARCHAR(50) NOT NULL,
+                combustivel VARCHAR(50) NOT NULL,
+                cambio VARCHAR(50) NOT NULL,
+                motor VARCHAR(100),
+                portas INTEGER,
+                categoria VARCHAR(100) NOT NULL,
+                cilindrada VARCHAR(50),
+                preco DECIMAL(12,2) NOT NULL CHECK (preco > 0),
+                fotos TEXT[],
+                ativo BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Tabelas criadas/verificadas com sucesso!',
+            'integrador_table': 'integrador',
+            'client_table': client_table
+        })# app.py
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -711,7 +781,100 @@ def popular_basico():
             'total_inseridos': 0
         }), 500
 
-# Rota para limpar cache em caso de problemas
+# Versão de debug para identificar o problema
+@app.route('/admin/debug-basico')
+@login_required
+def debug_basico():
+    """Debug da inserção básica"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Primeiro vamos verificar a estrutura da tabela
+        cursor.execute("""
+            SELECT column_name, data_type, is_nullable, column_default 
+            FROM information_schema.columns 
+            WHERE table_name = 'integrador'
+            ORDER BY ordinal_position
+        """)
+        colunas = cursor.fetchall()
+        
+        # Teste de inserção simples
+        dados_teste = ('carros', 59, 'Volkswagen', 5940, 'Gol', '2020-1', 'Gol 1.0', 2020, 'Flex', '1.0', 'Hatch')
+        
+        try:
+            cursor.execute('''
+                INSERT INTO integrador (
+                    tipo, marca_id, marca_nome, modelo_id, modelo_nome,
+                    versao_id, versao_nome, ano_modelo, combustivel, motor, categoria
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', dados_teste)
+            
+            conn.commit()
+            insert_success = True
+            insert_error = None
+            
+        except Exception as e:
+            conn.rollback()
+            insert_success = False
+            insert_error = str(e)
+        
+        # Verificar se já tem dados
+        cursor.execute('SELECT COUNT(*) FROM integrador')
+        total_registros = cursor.fetchone()[0]
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'colunas_tabela': colunas,
+            'total_registros_atual': total_registros,
+            'teste_insert': {
+                'success': insert_success,
+                'error': insert_error,
+                'dados_teste': dados_teste
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': f'Erro geral: {str(e)}'
+        }), 500
+
+# Versão ainda mais simples para teste
+@app.route('/admin/teste-simples')
+@login_required
+def teste_simples():
+    """Teste mais simples possível"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Tentar inserção mais básica possível
+        cursor.execute('''
+            INSERT INTO integrador (tipo, marca_id, marca_nome, modelo_id, modelo_nome, versao_id, versao_nome, ano_modelo)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ''', ('carros', 1, 'Teste', 1, 'Modelo Teste', 1, 'Versao Teste', 2020))
+        
+        conn.commit()
+        
+        # Verificar se inseriu
+        cursor.execute('SELECT COUNT(*) FROM integrador')
+        total = cursor.fetchone()[0]
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Inserção simples funcionou! Total: {total}'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 @app.route('/admin/limpar-cache')
 @login_required
 def limpar_cache():
