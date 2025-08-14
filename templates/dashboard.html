@@ -195,10 +195,10 @@
                 </div>
                 <h3 class="text-xl font-semibold text-gray-700 mb-3">Nenhum veículo cadastrado</h3>
                 <p class="text-gray-500 mb-6">Comece adicionando seu primeiro veículo ao sistema</p>
-                <a href="{{ url_for('novo_veiculo') }}" 
+                <button onclick="abrirModalVeiculo()" 
                    class="bg-orange text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-dark transition-all hover-scale inline-flex items-center">
                     <i class="fas fa-plus mr-2"></i>Adicionar Veículo
-                </a>
+                </button>
             </div>
         </div>
         {% endif %}
@@ -466,11 +466,16 @@ function resetarFormulario() {
     mostrarEtapa(1);
     
     // Reset selects
-    $('#marca, #modelo, #versao').prop('disabled', true).html('<option value="">Selecione</option>');
+    $('#marca').prop('disabled', true).html('<option value="">Selecione a marca</option>');
+    $('#modelo').prop('disabled', true).html('<option value="">Selecione o modelo</option>');
+    $('#versao').prop('disabled', true).html('<option value="">Selecione a versão</option>');
     $('#etapa3 input, #etapa3 select').prop('disabled', true);
     
     // Reset progress
     updateProgress(1);
+    
+    // Limpar fotos
+    $('#fotosAtuais').addClass('hidden').empty();
 }
 
 function mostrarEtapa(etapa) {
@@ -508,9 +513,31 @@ function etapaAnterior() {
 
 function validarEtapaAtual() {
     if (etapaAtual === 1) {
-        return $('#tipo').val() && $('#marca').val();
+        const tipo = $('#tipo').val();
+        const marca = $('#marca').val();
+        
+        if (!tipo) {
+            alert('Selecione o tipo de veículo');
+            return false;
+        }
+        if (!marca) {
+            alert('Selecione a marca');
+            return false;
+        }
+        return true;
     } else if (etapaAtual === 2) {
-        return $('#modelo').val() && $('#versao').val();
+        const modelo = $('#modelo').val();
+        const versao = $('#versao').val();
+        
+        if (!modelo) {
+            alert('Selecione o modelo');
+            return false;
+        }
+        if (!versao) {
+            alert('Selecione a versão');
+            return false;
+        }
+        return true;
     }
     return true;
 }
@@ -529,77 +556,84 @@ function updateProgress(step) {
 }
 
 // Carregar dados da FIPE
-$('#tipo').change(function() {
-    const tipo = $(this).val();
-    
-    if (tipo) {
-        carregarMarcas(tipo);
-        $('#marca').prop('disabled', false);
+$(document).ready(function() {
+    $('#tipo').change(function() {
+        const tipo = $(this).val();
+        console.log('Tipo selecionado:', tipo); // Debug
         
-        // Mostrar/ocultar cilindrada para motos
-        if (tipo === 'motos') {
-            $('#cilindradaDiv').removeClass('hidden');
+        if (tipo) {
+            carregarMarcas(tipo);
+            $('#marca').prop('disabled', false);
+            
+            // Mostrar/ocultar cilindrada para motos
+            if (tipo === 'motos') {
+                $('#cilindradaDiv').removeClass('hidden');
+            } else {
+                $('#cilindradaDiv').addClass('hidden');
+            }
         } else {
-            $('#cilindradaDiv').addClass('hidden');
+            $('#marca, #modelo, #versao').prop('disabled', true).html('<option value="">Selecione</option>');
         }
-    } else {
-        $('#marca, #modelo, #versao').prop('disabled', true).html('<option value="">Selecione</option>');
-    }
-});
+    });
 
-$('#marca').change(function() {
-    const marcaId = $(this).val();
-    const marcaNome = $(this).find('option:selected').text();
-    $('#marcaNome').val(marcaNome);
-    
-    if (marcaId) {
-        carregarModelos($('#tipo').val(), marcaId);
-        $('#modelo').prop('disabled', false);
-    } else {
-        $('#modelo, #versao').prop('disabled', true).html('<option value="">Selecione</option>');
-    }
-});
+    $('#marca').change(function() {
+        const marcaId = $(this).val();
+        const marcaNome = $(this).find('option:selected').text();
+        $('#marcaNome').val(marcaNome);
+        
+        if (marcaId) {
+            carregarModelos($('#tipo').val(), marcaId);
+            $('#modelo').prop('disabled', false);
+        } else {
+            $('#modelo, #versao').prop('disabled', true).html('<option value="">Selecione</option>');
+        }
+    });
 
-$('#modelo').change(function() {
-    const modeloId = $(this).val();
-    const modeloNome = $(this).find('option:selected').text();
-    $('#modeloNome').val(modeloNome);
-    
-    if (modeloId) {
-        carregarAnos($('#tipo').val(), $('#marca').val(), modeloId);
-        $('#versao').prop('disabled', false);
-    } else {
-        $('#versao').prop('disabled', true).html('<option value="">Selecione</option>');
-    }
-});
+    $('#modelo').change(function() {
+        const modeloId = $(this).val();
+        const modeloNome = $(this).find('option:selected').text();
+        $('#modeloNome').val(modeloNome);
+        
+        if (modeloId) {
+            carregarAnos($('#tipo').val(), $('#marca').val(), modeloId);
+            $('#versao').prop('disabled', false);
+        } else {
+            $('#versao').prop('disabled', true).html('<option value="">Selecione</option>');
+        }
+    });
 
-$('#versao').change(function() {
-    const anoId = $(this).val();
-    const versaoNome = $(this).find('option:selected').text();
-    $('#versaoNome').val(versaoNome);
-    
-    if (anoId) {
-        carregarDetalhes($('#tipo').val(), $('#marca').val(), $('#modelo').val(), anoId);
-        $('#etapa3 input, #etapa3 select').not('[readonly]').prop('disabled', false);
-        $('#etapa2').removeClass('hidden');
-        updateProgress(2);
-    } else {
-        $('#etapa3 input, #etapa3 select').prop('disabled', true);
-    }
+    $('#versao').change(function() {
+        const anoId = $(this).val();
+        const versaoNome = $(this).find('option:selected').text();
+        $('#versaoNome').val(versaoNome);
+        
+        if (anoId) {
+            carregarDetalhes($('#tipo').val(), $('#marca').val(), $('#modelo').val(), anoId);
+            $('#etapa3 input, #etapa3 select').not('[readonly]').prop('disabled', false);
+            // Permitir avançar para etapa 3
+            updateProgress(3);
+        } else {
+            $('#etapa3 input, #etapa3 select').prop('disabled', true);
+        }
+    });
 });
 
 function carregarMarcas(tipo) {
+    console.log('Carregando marcas para tipo:', tipo); // Debug
     showLoading();
     
     $.get(`/api/marcas/${tipo}`)
         .done(function(marcas) {
+            console.log('Marcas carregadas:', marcas.length); // Debug
             let options = '<option value="">Selecione a marca</option>';
             marcas.forEach(function(marca) {
                 options += `<option value="${marca.codigo}">${marca.nome}</option>`;
             });
             $('#marca').html(options);
+            $('#marca').prop('disabled', false); // Garantir que está habilitado
         })
         .fail(function() {
+            console.error('Erro ao carregar marcas'); // Debug
             alert('Erro ao carregar marcas');
         })
         .always(function() {
