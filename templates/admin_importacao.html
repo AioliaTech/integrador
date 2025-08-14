@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}Administração - Importação FIPE{% endblock %}
+
+{% block content %}
+<div class="bg-gray-100 min-h-screen">
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    <a href="{{ url_for('dashboard') }}" class="text-orange hover:text-orange-dark mr-4">
+                        <i class="fas fa-arrow-left text-xl"></i>
+                    </a>
+                    <h1 class="text-xl font-bold text-gray-800">Administração - Importação FIPE</h1>
+                </div>
+                <a href="{{ url_for('logout') }}" class="bg-gray-500 text-white px-4 py-2 rounded-lg">
+                    <i class="fas fa-sign-out-alt mr-2"></i>Sair
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Status da Tabela -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-database mr-2 text-orange"></i>Status da Tabela Integrador
+            </h2>
+            
+            <div id="statusTabela" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <div class="text-2xl font-bold text-blue-600" id="totalRegistros">-</div>
+                    <div class="text-sm text-gray-600">Total de Registros</div>
+                </div>
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <div class="text-2xl font-bold text-green-600" id="totalCarros">-</div>
+                    <div class="text-sm text-gray-600">Carros</div>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-lg">
+                    <div class="text-2xl font-bold text-purple-600" id="totalMotos">-</div>
+                    <div class="text-sm text-gray-600">Motos</div>
+                </div>
+                <div class="bg-orange-50 p-4 rounded-lg">
+                    <div class="text-2xl font-bold text-orange" id="totalMarcas">-</div>
+                    <div class="text-sm text-gray-600">Marcas Únicas</div>
+                </div>
+            </div>
+            
+            <button onclick="verificarStatus()" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+                <i class="fas fa-refresh mr-2"></i>Atualizar Status
+            </button>
+        </div>
+
+        <!-- Importação Rápida -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-bolt mr-2 text-yellow-500"></i>Importação Rápida
+            </h2>
+            <p class="text-gray-600 mb-4">
+                Importa apenas marcas e modelos populares (mais rápido, dados suficientes para teste).
+            </p>
+            
+            <button onclick="importacaoRapida()" class="bg-yellow-500 text-white px-6 py-3 rounded-lg hover:bg-yellow-600 font-semibold">
+                <i class="fas fa-bolt mr-2"></i>Importação Rápida (Recomendado)
+            </button>
+        </div>
+
+        <!-- Importação Completa -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-download mr-2 text-orange"></i>Importação Completa da FIPE
+            </h2>
+            <p class="text-gray-600 mb-4">
+                Importa TODOS os dados da FIPE. Este processo pode demorar várias horas e fazer muitas requisições.
+            </p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <button onclick="iniciarImportacao('carros')" 
+                        class="bg-orange text-white px-6 py-3 rounded-lg hover:bg-orange-dark font-semibold">
+                    <i class="fas fa-car mr-2"></i>Importar Carros
+                </button>
+                
+                <button onclick="iniciarImportacao('motos')" 
+                        class="bg-orange text-white px-6 py-3 rounded-lg hover:bg-orange-dark font-semibold">
+                    <i class="fas fa-motorcycle mr-2"></i>Importar Motos
+                </button>
+            </div>
+            
+            <div class="flex space-x-4">
+                <button onclick="pararImportacao()" 
+                        class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">
+                    <i class="fas fa-stop mr-2"></i>Parar Importação
+                </button>
+            </div>
+        </div>
+
+        <!-- Status da Importação -->
+        <div id="statusImportacao" class="bg-white rounded-xl shadow-lg p-6 hidden">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-cog fa-spin mr-2 text-orange"></i>Status da Importação
+            </h2>
+            
+            <div class="mb-4">
+                <div class="flex justify-between text-sm text-gray-600 mb-1">
+                    <span id="statusTexto">Iniciando...</span>
+                    <span><span id="progresso">0</span>/<span id="total">0</span></span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="barraProgresso" class="bg-orange h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div id="statusAtual" class="text-gray-700 bg-gray-50 p-3 rounded-lg font-mono text-sm">
+                Aguardando início da importação...
+            </div>
+            
+            <div id="statusErro" class="hidden mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div class="flex items-center text-red-800">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    <span id="textoErro"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log de Ações -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-list mr-2 text-gray-600"></i>Log de Ações
+            </h2>
+            
+            <div id="logAcoes" class="space-y-2 max-h-64 overflow-y-auto">
+                <div class="text-gray-500 text-sm">Nenhuma ação realizada ainda.</div>
+            </div>
+            
+            <button onclick="limparLog()" class="mt-4 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600">
+                <i class="fas fa-trash mr-2"></i>Limpar Log
+            </button>
+        </div>
+    </main>
+</div>
+
+<script>
+let intervalStatus = null;
+
+$(document).ready(function() {
+    verificarStatus();
+});
+
+function verificarStatus() {
+    adicionarLog('Verificando status da tabela...', 'info');
+    
+    $.get('/admin/verificar-dados')
+        .done(function(data) {
+            $('#totalRegistros').text(data.total_registros.toLocaleString());
+            
+            let carros = 0, motos = 0;
+            data.por_tipo.forEach(function(item) {
+                if (item.tipo === 'carros') carros = item.quantidade;
+                if (item.tipo === 'motos') motos = item.quantidade;
+            });
+            
+            $('#totalCarros').text(carros.toLocaleString());
+            $('#totalMotos').text(motos.toLocaleString());
+            
+            let totalMarcas = 0;
+            data.marcas_por_tipo.forEach(function(item) {
+                totalMarcas += item.marcas;
+            });
+            $('#totalMarcas').text(totalMarcas);
+            
+            adicionarLog(`Status atualizado: ${data.total_registros} registros encontrados`, 'success');
+        })
+        .fail(function() {
+            adicionarLog('Erro ao verificar status da tabela', 'error');
+        });
+}
+
+function importacaoRapida() {
+    adicionarLog('Iniciando importação rápida...', 'info');
+    showLoading();
+    
+    $.get('/admin/importacao-rapida')
+        .done(function(data) {
+            hideLoading();
+            if (data.success) {
+                adicionarLog(data.message, 'success');
+                verificarStatus();
+            } else {
+                adicionarLog('Erro na importação rápida: ' + data.error, 'error');
+            }
+        })
+        .fail(function() {
+            hideLoading();
+            adicionarLog('Erro na importação rápida', 'error');
+        });
+}
+
+function iniciarImportacao(tipo) {
+    adicionarLog(`Iniciando importação completa de ${tipo}...`, 'info');
+    
+    $.get(`/admin/iniciar-importacao/${tipo}`)
+        .done(function(data) {
+            if (data.success) {
+                $('#statusImportacao').removeClass('hidden');
+                adicionarLog(data.message, 'success');
+                iniciarMonitoramento();
+            } else {
+                adicionarLog('Erro ao iniciar importação: ' + data.message, 'error');
+            }
+        })
+        .fail(function() {
+            adicionarLog('Erro ao iniciar importação', 'error');
+        });
+}
+
+function pararImportacao() {
+    $.get('/admin/parar-importacao')
+        .done(function(data) {
+            if (data.success) {
+                adicionarLog('Importação interrompida pelo usuário', 'warning');
+                pararMonitoramento();
+            }
+        });
+}
+
+function iniciarMonitoramento() {
+    intervalStatus = setInterval(function() {
+        $.get('/admin/status-importacao')
+            .done(function(status) {
+                atualizarStatusImportacao(status);
+                
+                if (!status.em_andamento) {
+                    pararMonitoramento();
+                    verificarStatus();
+                }
+            });
+    }, 1000);
+}
+
+function pararMonitoramento() {
+    if (intervalStatus) {
+        clearInterval(intervalStatus);
+        intervalStatus = null;
+    }
+    $('#statusImportacao').addClass('hidden');
+}
+
+function atualizarStatusImportacao(status) {
+    $('#progresso').text(status.progresso);
+    $('#total').text(status.total);
+    $('#statusAtual').text(status.atual);
+    
+    if (status.total > 0) {
+        const porcentagem = (status.progresso / status.total) * 100;
+        $('#barraProgresso').css('width', porcentagem + '%');
+    }
+    
+    if (status.erro) {
+        $('#statusErro').removeClass('hidden');
+        $('#textoErro').text(status.erro);
+        adicionarLog('Erro na importação: ' + status.erro, 'error');
+    } else {
+        $('#statusErro').addClass('hidden');
+    }
+}
+
+function adicionarLog(mensagem, tipo = 'info') {
+    const agora = new Date().toLocaleTimeString();
+    const icones = {
+        'info': 'fas fa-info-circle text-blue-500',
+        'success': 'fas fa-check-circle text-green-500',
+        'warning': 'fas fa-exclamation-triangle text-yellow-500',
+        'error': 'fas fa-times-circle text-red-500'
+    };
+    
+    const logItem = `
+        <div class="flex items-start space-x-2 p-2 text-sm">
+            <i class="${icones[tipo]} mt-0.5"></i>
+            <span class="text-gray-500">${agora}</span>
+            <span class="flex-1">${mensagem}</span>
+        </div>
+    `;
+    
+    $('#logAcoes').prepend(logItem);
+    
+    const logs = $('#logAcoes').children();
+    if (logs.length > 50) {
+        logs.slice(50).remove();
+    }
+}
+
+function limparLog() {
+    $('#logAcoes').html('<div class="text-gray-500 text-sm">Log limpo.</div>');
+}
+</script>
+{% endblock %}
