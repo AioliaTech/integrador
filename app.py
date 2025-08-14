@@ -788,5 +788,63 @@ def api_detalhes(tipo, marca_id, modelo_id, ano_codigo):
                 'AnoModelo': ano_modelo,
                 'Combustivel': 'Flex',
                 'SiglaCombustivel': '1.0',
-                'Modelo': 'Veículo',
-                'T
+                'Modelo': 'Veiculo',
+                'TipoVeiculo': 'Sedan'
+            }
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify(detalhes)
+        
+    except Exception as e:
+        print(f"Erro ao buscar detalhes: {e}")
+        return jsonify({
+            'AnoModelo': 2020,
+            'Combustivel': 'Flex',
+            'SiglaCombustivel': '1.0',
+            'Modelo': 'Veiculo',
+            'TipoVeiculo': 'Sedan'
+        })
+
+@app.route('/xml')
+def xml_endpoint():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        cursor.execute(f'SELECT * FROM {CLIENT_TABLE} WHERE ativo = TRUE ORDER BY created_at DESC')
+        veiculos = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        veiculos_json = []
+        for veiculo in veiculos:
+            veiculo_dict = dict(veiculo)
+            if veiculo_dict.get('created_at'):
+                veiculo_dict['created_at'] = veiculo_dict['created_at'].isoformat()
+            if veiculo_dict.get('updated_at'):
+                veiculo_dict['updated_at'] = veiculo_dict['updated_at'].isoformat()
+            veiculos_json.append(veiculo_dict)
+        
+        return jsonify({
+            'veiculos': veiculos_json,
+            'total': len(veiculos_json),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'veiculos': [],
+            'total': 0,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        })
+
+@app.route('/json')
+def json_endpoint():
+    return xml_endpoint()
+
+if __name__ == '__main__':
+    init_db()
+    app.run(debug=True, host='0.0.0.0', port=5000)
