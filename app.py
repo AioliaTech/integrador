@@ -335,32 +335,307 @@ def toggle_veiculo(veiculo_id):
     
     return jsonify({'success': True})
 
-# APIs FIPE
+# APIs FIPE - Modificadas para usar cache local
 @app.route('/api/marcas/<tipo>')
 @login_required
 def api_marcas(tipo):
-    marcas = FipeAPI.get_marcas(tipo)
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    # Primeiro tenta buscar do cache local
+    cursor.execute('''
+        SELECT DISTINCT marca_id as codigo, marca_nome as nome 
+        FROM integrador 
+        WHERE tipo = %s 
+        ORDER BY marca_nome
+    ''', (tipo,))
+    marcas_cache = cursor.fetchall()
+    
+    if marcas_cache:
+        # Se tem no cache, usa os dados locais
+        marcas = [{'codigo': m['codigo'], 'nome': m['nome']} for m in marcas_cache]
+    else:
+        # Se não tem no cache, busca da API e salva
+        marcas = FipeAPI.get_marcas(tipo)
+        
+        # Salvar no cache (opcional - pode ser feito em background)
+        for marca in marcas:
+            try:
+                cursor.execute('''
+                    INSERT INTO integrador (tipo, marca_id, marca_nome, modelo_id, modelo_nome, versao_id, versao_nome, ano_modelo)
+                    VALUES (%s, %s, %s, 0, 'PLACEHOLDER', 0, 'PLACEHOLDER', 0)
+                    ON CONFLICT (tipo, marca_id, modelo_id, versao_id, ano_modelo) DO NOTHING
+                ''', (tipo, marca['codigo'], marca['nome']))
+            except:
+                pass  # Ignora erros de duplicação
+        conn.commit()
+    
+    cursor.close()
+    conn.close()
     return jsonify(marcas)
 
 @app.route('/api/modelos/<tipo>/<marca_id>')
 @login_required
 def api_modelos(tipo, marca_id):
-    modelos = FipeAPI.get_modelos(tipo, marca_id)
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    # Buscar do cache local
+    cursor.execute('''
+        SELECT DISTINCT modelo_id as codigo, modelo_nome as nome 
+        FROM integrador 
+        WHERE tipo = %s AND marca_id = %s AND modelo_id > 0
+        ORDER BY modelo_nome
+    ''', (tipo, marca_id))
+    modelos_cache = cursor.fetchall()
+    
+    if modelos_cache:
+        modelos = [{'codigo': m['codigo'], 'nome': m['nome']} for m in modelos_cache]
+    else:
+        # Buscar da API se não tem no cache
+        modelos = FipeAPI.get_modelos(tipo, marca_id)
+        
+        # Salvar no cache
+        for modelo in modelos:
+            try:
+                cursor.execute('''
+                    INSERT INTO integrador (tipo, marca_id, marca_nome, modelo_id, modelo_nome, versao_id, versao_nome, ano_modelo)
+                    SELECT %s, %s, marca_nome, %s, %s, 0, 'PLACEHOLDER', 0
+                    FROM integrador WHERE marca_id = %s LIMIT 1
+                    ON CONFLICT (tipo, marca_id, modelo_id, versao_id, ano_modelo) DO NOTHING
+                ''', (tipo, marca_id, modelo['codigo'], modelo['nome'], marca_id))
+            except:
+                pass
+        conn.commit()
+    
+    cursor.close()
+    conn.close()
     return jsonify(modelos)
 
 @app.route('/api/anos/<tipo>/<marca_id>/<modelo_id>')
 @login_required
 def api_anos(tipo, marca_id, modelo_id):
-    anos = FipeAPI.get_anos(tipo, marca_id, modelo_id)
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    # Buscar do cache local
+    cursor.execute('''
+        SELECT DISTINCT ano_modelo, versao_nome, versao_id
+        FROM integrador 
+        WHERE tipo = %s AND marca_id = %s AND modelo_id = %s AND ano_modelo > 0
+        ORDER BY ano_modelo DESC, versao_nome
+    ''', (tipo, marca_id, modelo_id))
+    anos_cache = cursor.fetchall()
+    
+    if anos_cache:
+        anos = []
+        for ano in anos_cache:
+            codigo = f"{ano['ano_modelo']}-{ano['versao_id']}"
+            nome = f"{ano['ano_modelo']} - {ano['versao_nome']}"
+            anos.append({'codigo': codigo, 'nome': nome})
+    else:
+        # Buscar da API se não tem no cache
+        anos = FipeAPI.get_anos(tipo, marca_id, modelo_id)
+        
+        # Para cada ano, buscar detalhes e salvar
+        for ano in anos:
+            try:
+                detalhes = FipeAPI.get_detalhes(tipo, marca_id, modelo_id, ano['codigo'])
+                if detalhes:
+                    cursor.execute('''
+                        INSERT INTO integrador (
+                            tipo, marca_id, marca_nome, modelo_id, modelo_nome, 
+                            versao_id, versao_nome, ano_modelo, combustivel, motor, categoria
+                        )
+                        SELECT %s, %s, marca_nome, %s, modelo_nome, %s, %s, %s, %s, %s, %s
+                        FROM integrador WHERE marca_id = %s AND modelo_id = %s LIMIT 1
+                        ON CONFLICT (tipo, marca_id, modelo_id, versao_id, ano_modelo) DO UPDATE SET
+                            combustivel = EXCLUDED.combustivel,
+                            motor = EXCLUDED.motor,
+                            categoria = EXCLUDED.categoria
+                    ''', (
+                        tipo, marca_id, int(ano['codigo'].split('-')[0]), 
+                        detalhes.get('CodigoFipe', ano['codigo']), 
+                        detalhes.get('Modelo', ano['nome']),
+                        detalhes.get('AnoModelo', ano['codigo'].split('-')[0]),
+                        detalhes.get('Combustivel', ''),
+                        detalhes.get('SiglaCombustivel', ''),
+                        detalhes.get('TipoVeiculo', ''),
+                        marca_id, modelo_id
+                    ))
+            except:
+                pass
+        conn.commit()
+    
+    cursor.close()
+    conn.close()
     return jsonify(anos)
 
 @app.route('/api/detalhes/<tipo>/<marca_id>/<modelo_id>/<ano_codigo>')
 @login_required
 def api_detalhes(tipo, marca_id, modelo_id, ano_codigo):
-    detalhes = FipeAPI.get_detalhes(tipo, marca_id, modelo_id, ano_codigo)
+    # Extrair ano e versão do código
+    try:
+        if '-' in ano_codigo:
+            ano_modelo = int(ano_codigo.split('-')[0])
+            versao_id = ano_codigo.split('-')[1]
+        else:
+            ano_modelo = int(ano_codigo)
+            versao_id = None
+    except:
+        ano_modelo = 2020
+        versao_id = None
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    # Buscar do cache local
+    cursor.execute('''
+        SELECT * FROM integrador 
+        WHERE tipo = %s AND marca_id = %s AND modelo_id = %s AND ano_modelo = %s
+        ORDER BY created_at DESC LIMIT 1
+    ''', (tipo, marca_id, modelo_id, ano_modelo))
+    detalhes_cache = cursor.fetchone()
+    
+    if detalhes_cache and detalhes_cache['combustivel']:
+        # Usar dados do cache
+        detalhes = {
+            'AnoModelo': detalhes_cache['ano_modelo'],
+            'Combustivel': detalhes_cache['combustivel'],
+            'SiglaCombustivel': detalhes_cache['motor'],
+            'Modelo': detalhes_cache['versao_nome'],
+            'TipoVeiculo': detalhes_cache['categoria']
+        }
+    else:
+        # Buscar da API como fallback
+        detalhes = FipeAPI.get_detalhes(tipo, marca_id, modelo_id, ano_codigo)
+        
+        # Salvar no cache
+        if detalhes:
+            try:
+                cursor.execute('''
+                    INSERT INTO integrador (
+                        tipo, marca_id, marca_nome, modelo_id, modelo_nome, 
+                        versao_id, versao_nome, ano_modelo, combustivel, motor, categoria
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (tipo, marca_id, modelo_id, versao_id, ano_modelo) DO UPDATE SET
+                        combustivel = EXCLUDED.combustivel,
+                        motor = EXCLUDED.motor,
+                        categoria = EXCLUDED.categoria
+                ''', (
+                    tipo, int(marca_id), detalhes.get('Marca', ''), int(modelo_id), 
+                    detalhes.get('Modelo', ''), versao_id or 0, detalhes.get('Modelo', ''),
+                    detalhes.get('AnoModelo', ano_modelo), detalhes.get('Combustivel', ''),
+                    detalhes.get('SiglaCombustivel', ''), detalhes.get('TipoVeiculo', '')
+                ))
+                conn.commit()
+            except Exception as e:
+                print(f"Erro ao salvar cache: {e}")
+    
+    cursor.close()
+    conn.close()
     return jsonify(detalhes)
 
-# Endpoints públicos para XML/JSON
+# Rota para popular cache da FIPE (executar uma vez)
+@app.route('/admin/popular-fipe')
+@login_required
+def popular_fipe():
+    """Popula a tabela integrador com dados da FIPE"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    tipos = ['carros', 'motos']
+    total_inseridos = 0
+    
+    for tipo in tipos:
+        print(f"Populando {tipo}...")
+        
+        # Buscar marcas
+        marcas = FipeAPI.get_marcas(tipo)
+        
+        for marca in marcas[:10]:  # Limitar a 10 marcas para não sobrecarregar
+            print(f"  Marca: {marca['nome']}")
+            
+            # Buscar modelos
+            modelos = FipeAPI.get_modelos(tipo, marca['codigo'])
+            
+            for modelo in modelos[:5]:  # Limitar a 5 modelos por marca
+                print(f"    Modelo: {modelo['nome']}")
+                
+                # Buscar anos
+                anos = FipeAPI.get_anos(tipo, marca['codigo'], modelo['codigo'])
+                
+                for ano in anos[:3]:  # Limitar a 3 anos por modelo
+                    try:
+                        # Buscar detalhes
+                        detalhes = FipeAPI.get_detalhes(tipo, marca['codigo'], modelo['codigo'], ano['codigo'])
+                        
+                        if detalhes:
+                            cursor.execute('''
+                                INSERT INTO integrador (
+                                    tipo, marca_id, marca_nome, modelo_id, modelo_nome,
+                                    versao_id, versao_nome, ano_modelo, combustivel, motor, categoria
+                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                ON CONFLICT (tipo, marca_id, modelo_id, versao_id, ano_modelo) DO NOTHING
+                            ''', (
+                                tipo, marca['codigo'], marca['nome'], modelo['codigo'], modelo['nome'],
+                                detalhes.get('CodigoFipe', ano['codigo']), detalhes.get('Modelo', ano['nome']),
+                                detalhes.get('AnoModelo', 2020), detalhes.get('Combustivel', ''),
+                                detalhes.get('SiglaCombustivel', ''), detalhes.get('TipoVeiculo', '')
+                            ))
+                            total_inseridos += 1
+                            
+                            if total_inseridos % 10 == 0:
+                                conn.commit()  # Commit a cada 10 inserções
+                                print(f"    Inseridos: {total_inseridos}")
+                    except Exception as e:
+                        print(f"Erro ao inserir {ano['nome']}: {e}")
+                        continue
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'message': f'Cache populado com {total_inseridos} registros',
+        'total_inseridos': total_inseridos
+    })
+
+# Rota para verificar status do cache
+@app.route('/admin/status-cache')
+@login_required
+def status_cache():
+    """Verifica quantos registros tem no cache"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Estatísticas gerais
+    cursor.execute('SELECT COUNT(*) FROM integrador')
+    total = cursor.fetchone()[0]
+    
+    cursor.execute('SELECT COUNT(DISTINCT marca_id) FROM integrador WHERE tipo = %s', ('carros',))
+    marcas_carros = cursor.fetchone()[0]
+    
+    cursor.execute('SELECT COUNT(DISTINCT marca_id) FROM integrador WHERE tipo = %s', ('motos',))
+    marcas_motos = cursor.fetchone()[0]
+    
+    cursor.execute('SELECT COUNT(DISTINCT modelo_id) FROM integrador WHERE tipo = %s', ('carros',))
+    modelos_carros = cursor.fetchone()[0]
+    
+    cursor.execute('SELECT COUNT(DISTINCT modelo_id) FROM integrador WHERE tipo = %s', ('motos',))
+    modelos_motos = cursor.fetchone()[0]
+    
+    cursor.close()
+    conn.close()
+    
+    return jsonify({
+        'total_registros': total,
+        'marcas_carros': marcas_carros,
+        'marcas_motos': marcas_motos,
+        'modelos_carros': modelos_carros,
+        'modelos_motos': modelos_motos
+    })
 @app.route('/xml')
 def xml_endpoint():
     conn = get_db_connection()
