@@ -532,13 +532,15 @@ def popular_basico():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Dados básicos para teste
+        # Dados básicos DIFERENTES dos que já existem
         dados_basicos = [
-            ('carros', 59, 'Volkswagen', 5940, 'Gol', '2020-1', 'Gol 1.0', 2020, 'Flex', '1.0', 'Hatch'),
-            ('carros', 22, 'Chevrolet', 7328, 'Onix', '2020-1', 'Onix 1.0', 2020, 'Flex', '1.0', 'Hatch'),
-            ('carros', 26, 'Ford', 5035, 'Ka', '2020-1', 'Ka 1.0', 2020, 'Flex', '1.0', 'Hatch'),
-            ('motos', 26, 'Honda', 1446, 'CG 160', '2020-1', 'CG 160 Titan', 2020, 'Gasolina', '160cc', 'Street'),
-            ('motos', 52, 'Yamaha', 2467, 'Factor 125', '2020-1', 'Factor 125i', 2020, 'Gasolina', '125cc', 'Street'),
+            ('carros', 25, 'Fiat', 4828, 'Argo', '2021-1', 'Argo 1.0', 2021, 'Flex', '1.0', 'Hatch'),
+            ('carros', 21, 'Hyundai', 9124, 'HB20', '2021-1', 'HB20 1.0', 2021, 'Flex', '1.0', 'Hatch'),
+            ('carros', 320, 'Toyota', 9218, 'Corolla', '2021-1', 'Corolla 2.0', 2021, 'Flex', '2.0', 'Sedan'),
+            ('motos', 46, 'Suzuki', 2100, 'GSX-R 1000', '2021-1', 'GSX-R 1000', 2021, 'Gasolina', '1000cc', 'Esportiva'),
+            ('motos', 28, 'Kawasaki', 3456, 'Ninja 400', '2021-1', 'Ninja 400', 2021, 'Gasolina', '400cc', 'Esportiva'),
+            ('carros', 1, 'Acura', 1001, 'NSX', '2021-1', 'NSX 3.5', 2021, 'Gasolina', '3.5', 'Esportivo'),
+            ('motos', 1, 'Agrale', 2001, 'Elefant', '2021-1', 'Elefant 250', 2021, 'Gasolina', '250cc', 'Trail'),
         ]
         
         total_inseridos = 0
@@ -550,10 +552,6 @@ def popular_basico():
                         tipo, marca_id, marca_nome, modelo_id, modelo_nome,
                         versao_id, versao_nome, ano_modelo, combustivel, motor, categoria
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (tipo, marca_id, modelo_id, versao_id, ano_modelo) DO UPDATE SET
-                        combustivel = EXCLUDED.combustivel,
-                        motor = EXCLUDED.motor,
-                        categoria = EXCLUDED.categoria
                 ''', dados)
                 
                 conn.commit()
@@ -561,7 +559,7 @@ def popular_basico():
                 
             except Exception as e:
                 conn.rollback()
-                print(f"Erro ao inserir: {e}")
+                print(f"Erro ao inserir {dados[2]}: {e}")
                 continue
         
         cursor.close()
@@ -569,7 +567,7 @@ def popular_basico():
         
         return jsonify({
             'success': True,
-            'message': f'Cache básico populado com {total_inseridos} registros',
+            'message': f'Cache básico populado com {total_inseridos} registros adicionais',
             'total_inseridos': total_inseridos
         })
         
