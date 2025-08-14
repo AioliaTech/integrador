@@ -98,10 +98,10 @@
         <!-- Actions -->
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold text-gray-800">Veículos Cadastrados</h2>
-            <a href="{{ url_for('novo_veiculo') }}" 
+            <button onclick="abrirModalVeiculo()" 
                class="bg-orange text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-dark transition-all hover-scale flex items-center">
                 <i class="fas fa-plus mr-2"></i>Novo Veículo
-            </a>
+            </button>
         </div>
 
         <!-- Vehicles Grid -->
@@ -166,10 +166,10 @@
                     
                     <!-- Actions -->
                     <div class="flex space-x-2">
-                        <a href="{{ url_for('editar_veiculo', veiculo_id=veiculo.id) }}" 
+                        <button onclick="abrirModalVeiculo({{ veiculo.id }})" 
                            class="flex-1 bg-blue-500 text-white px-3 py-2 rounded text-center text-sm hover:bg-blue-600 transition-all flex items-center justify-center">
                             <i class="fas fa-edit mr-1"></i>Editar
-                        </a>
+                        </button>
                         
                         <button onclick="toggleVeiculo({{ veiculo.id }})" 
                                 class="flex-1 {% if veiculo.ativo %}bg-yellow-500 hover:bg-yellow-600{% else %}bg-green-500 hover:bg-green-600{% endif %} text-white px-3 py-2 rounded text-sm transition-all flex items-center justify-center">
@@ -205,7 +205,501 @@
     </main>
 </div>
 
+<!-- Modal do Veículo -->
+<div id="modalVeiculo" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+        <!-- Header do Modal -->
+        <div class="bg-orange text-white p-6 flex justify-between items-center">
+            <h2 id="modalTitle" class="text-xl font-bold flex items-center">
+                <i class="fas fa-plus mr-3"></i>Novo Veículo
+            </h2>
+            <button onclick="fecharModal()" class="text-white hover:text-gray-200 transition-colors">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+        
+        <!-- Conteúdo do Modal -->
+        <div class="overflow-y-auto max-h-[calc(90vh-100px)]">
+            <form id="veiculoForm" method="POST" enctype="multipart/form-data" class="p-6">
+                <input type="hidden" id="veiculoId" name="id">
+                <input type="hidden" id="fotosExistentes" name="fotos_existentes" value="[]">
+
+                <!-- Progress Steps -->
+                <div class="mb-8">
+                    <div class="flex items-center justify-center space-x-4 text-sm">
+                        <div id="step1" class="flex items-center text-orange">
+                            <div class="w-8 h-8 bg-orange rounded-full flex items-center justify-center text-white text-sm mr-2">1</div>
+                            <span class="hidden sm:inline">Tipo & Marca</span>
+                        </div>
+                        <div class="w-12 border-t border-gray-300"></div>
+                        <div id="step2" class="flex items-center text-gray-400">
+                            <div class="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-white text-sm mr-2">2</div>
+                            <span class="hidden sm:inline">Modelo & Versão</span>
+                        </div>
+                        <div class="w-12 border-t border-gray-300"></div>
+                        <div id="step3" class="flex items-center text-gray-400">
+                            <div class="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-white text-sm mr-2">3</div>
+                            <span class="hidden sm:inline">Detalhes</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Etapa 1: Tipo e Marca -->
+                <div id="etapa1" class="mb-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-car mr-2 text-orange"></i>Informações Básicas
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Tipo de Veículo</label>
+                            <select name="tipo" id="tipo" required 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange">
+                                <option value="">Selecione o tipo</option>
+                                <option value="carros">🚗 Carro</option>
+                                <option value="motos">🏍️ Moto</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Marca</label>
+                            <select name="marca_id" id="marca" required disabled
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                                <option value="">Selecione a marca</option>
+                            </select>
+                            <input type="hidden" name="marca_nome" id="marcaNome">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Etapa 2: Modelo e Versão -->
+                <div id="etapa2" class="mb-6 hidden">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-car-side mr-2 text-orange"></i>Modelo e Especificações
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Modelo</label>
+                            <select name="modelo_id" id="modelo" required disabled
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                                <option value="">Selecione o modelo</option>
+                            </select>
+                            <input type="hidden" name="modelo_nome" id="modeloNome">
+                        </div>
+
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Versão</label>
+                            <select name="versao_id" id="versao" required disabled
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                                <option value="">Selecione a versão</option>
+                            </select>
+                            <input type="hidden" name="versao_nome" id="versaoNome">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Etapa 3: Dados do Veículo -->
+                <div id="etapa3" class="hidden">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-info-circle mr-2 text-orange"></i>Detalhes do Veículo
+                    </h3>
+
+                    <!-- Dados Técnicos -->
+                    <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                        <h4 class="text-md font-semibold text-gray-700 mb-3">Dados Técnicos</h4>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Ano Modelo</label>
+                                <input type="number" name="ano_modelo" id="anoModelo" required disabled
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                            </div>
+
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Ano Fabricação</label>
+                                <input type="number" name="ano_fabricacao" required disabled
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                            </div>
+
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Quilometragem</label>
+                                <input type="number" name="km" required disabled placeholder="Ex: 50000"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                            </div>
+
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Cor</label>
+                                <input type="text" name="cor" required disabled placeholder="Ex: Branco"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                            </div>
+
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Combustível</label>
+                                <input type="text" name="combustivel" id="combustivel" readonly disabled
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100">
+                            </div>
+
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Câmbio</label>
+                                <select name="cambio" required disabled
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                                    <option value="">Selecione</option>
+                                    <option value="Manual">Manual</option>
+                                    <option value="Automático">Automático</option>
+                                    <option value="CVT">CVT</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Motor</label>
+                                <input type="text" name="motor" id="motor" readonly disabled
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100">
+                            </div>
+
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Portas</label>
+                                <input type="number" name="portas" id="portas" readonly disabled
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100">
+                            </div>
+
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Categoria</label>
+                                <input type="text" name="categoria" required disabled placeholder="Ex: Sedã, SUV"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                            </div>
+
+                            <div id="cilindradaDiv" class="hidden">
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Cilindrada</label>
+                                <input type="text" name="cilindrada" disabled placeholder="Ex: 250cc"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                            </div>
+
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Preço (R$)</label>
+                                <input type="number" step="0.01" name="preco" required disabled placeholder="Ex: 45000.00"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upload de Fotos -->
+                    <div class="bg-blue-50 rounded-lg p-4 mb-6">
+                        <h4 class="text-md font-semibold text-gray-700 mb-3 flex items-center">
+                            <i class="fas fa-images mr-2 text-orange"></i>Galeria de Fotos
+                        </h4>
+                        
+                        <input type="file" name="fotos" id="fotosInput" multiple accept="image/*" disabled
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange disabled:bg-gray-100">
+                        <p class="text-sm text-gray-500 mt-2">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Selecione múltiplas imagens (JPG, PNG). A primeira será a foto principal.
+                        </p>
+                        
+                        <!-- Preview de fotos existentes -->
+                        <div id="fotosAtuais" class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 hidden">
+                            <h5 class="col-span-full text-sm font-semibold text-gray-700">Fotos atuais:</h5>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Footer do Modal -->
+        <div class="bg-gray-50 p-6 flex space-x-4">
+            <button id="btnAnterior" onclick="etapaAnterior()" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition-colors hidden">
+                <i class="fas fa-arrow-left mr-2"></i>Anterior
+            </button>
+            
+            <button id="btnProximo" onclick="proximaEtapa()" class="bg-orange text-white px-6 py-2 rounded-lg hover:bg-orange-dark transition-colors">
+                <i class="fas fa-arrow-right mr-2"></i>Próximo
+            </button>
+            
+            <button id="btnSalvar" onclick="salvarVeiculo()" class="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors hidden">
+                <i class="fas fa-save mr-2"></i>Salvar Veículo
+            </button>
+            
+            <button onclick="fecharModal()" class="ml-auto bg-gray-400 text-white px-6 py-2 rounded-lg hover:bg-gray-500 transition-colors">
+                <i class="fas fa-times mr-2"></i>Cancelar
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
+let etapaAtual = 1;
+let fotosExistentes = [];
+let veiculoEditando = null;
+
+// Funções do Modal
+function abrirModalVeiculo(veiculoId = null) {
+    veiculoEditando = veiculoId;
+    
+    if (veiculoId) {
+        // Editar veículo
+        $('#modalTitle').html('<i class="fas fa-edit mr-3"></i>Editar Veículo');
+        carregarDadosVeiculo(veiculoId);
+    } else {
+        // Novo veículo
+        $('#modalTitle').html('<i class="fas fa-plus mr-3"></i>Novo Veículo');
+        resetarFormulario();
+    }
+    
+    $('#modalVeiculo').removeClass('hidden').addClass('flex');
+    $('body').addClass('overflow-hidden');
+}
+
+function fecharModal() {
+    $('#modalVeiculo').removeClass('flex').addClass('hidden');
+    $('body').removeClass('overflow-hidden');
+    resetarFormulario();
+}
+
+function resetarFormulario() {
+    etapaAtual = 1;
+    $('#veiculoForm')[0].reset();
+    $('#veiculoId').val('');
+    fotosExistentes = [];
+    $('#fotosExistentes').val('[]');
+    
+    // Reset etapas
+    mostrarEtapa(1);
+    
+    // Reset selects
+    $('#marca, #modelo, #versao').prop('disabled', true).html('<option value="">Selecione</option>');
+    $('#etapa3 input, #etapa3 select').prop('disabled', true);
+    
+    // Reset progress
+    updateProgress(1);
+}
+
+function mostrarEtapa(etapa) {
+    // Esconder todas as etapas
+    $('#etapa1, #etapa2, #etapa3').addClass('hidden');
+    
+    // Mostrar etapa atual
+    $(`#etapa${etapa}`).removeClass('hidden');
+    
+    // Controlar botões
+    $('#btnAnterior').toggleClass('hidden', etapa === 1);
+    $('#btnProximo').toggleClass('hidden', etapa === 3);
+    $('#btnSalvar').toggleClass('hidden', etapa !== 3);
+    
+    etapaAtual = etapa;
+}
+
+function proximaEtapa() {
+    if (etapaAtual < 3) {
+        if (validarEtapaAtual()) {
+            etapaAtual++;
+            mostrarEtapa(etapaAtual);
+            updateProgress(etapaAtual);
+        }
+    }
+}
+
+function etapaAnterior() {
+    if (etapaAtual > 1) {
+        etapaAtual--;
+        mostrarEtapa(etapaAtual);
+        updateProgress(etapaAtual);
+    }
+}
+
+function validarEtapaAtual() {
+    if (etapaAtual === 1) {
+        return $('#tipo').val() && $('#marca').val();
+    } else if (etapaAtual === 2) {
+        return $('#modelo').val() && $('#versao').val();
+    }
+    return true;
+}
+
+function updateProgress(step) {
+    for (let i = 1; i <= 3; i++) {
+        const stepEl = $(`#step${i}`);
+        if (i <= step) {
+            stepEl.removeClass('text-gray-400').addClass('text-orange');
+            stepEl.find('div').removeClass('bg-gray-300').addClass('bg-orange');
+        } else {
+            stepEl.removeClass('text-orange').addClass('text-gray-400');
+            stepEl.find('div').removeClass('bg-orange').addClass('bg-gray-300');
+        }
+    }
+}
+
+// Carregar dados da FIPE
+$('#tipo').change(function() {
+    const tipo = $(this).val();
+    
+    if (tipo) {
+        carregarMarcas(tipo);
+        $('#marca').prop('disabled', false);
+        
+        // Mostrar/ocultar cilindrada para motos
+        if (tipo === 'motos') {
+            $('#cilindradaDiv').removeClass('hidden');
+        } else {
+            $('#cilindradaDiv').addClass('hidden');
+        }
+    } else {
+        $('#marca, #modelo, #versao').prop('disabled', true).html('<option value="">Selecione</option>');
+    }
+});
+
+$('#marca').change(function() {
+    const marcaId = $(this).val();
+    const marcaNome = $(this).find('option:selected').text();
+    $('#marcaNome').val(marcaNome);
+    
+    if (marcaId) {
+        carregarModelos($('#tipo').val(), marcaId);
+        $('#modelo').prop('disabled', false);
+    } else {
+        $('#modelo, #versao').prop('disabled', true).html('<option value="">Selecione</option>');
+    }
+});
+
+$('#modelo').change(function() {
+    const modeloId = $(this).val();
+    const modeloNome = $(this).find('option:selected').text();
+    $('#modeloNome').val(modeloNome);
+    
+    if (modeloId) {
+        carregarAnos($('#tipo').val(), $('#marca').val(), modeloId);
+        $('#versao').prop('disabled', false);
+    } else {
+        $('#versao').prop('disabled', true).html('<option value="">Selecione</option>');
+    }
+});
+
+$('#versao').change(function() {
+    const anoId = $(this).val();
+    const versaoNome = $(this).find('option:selected').text();
+    $('#versaoNome').val(versaoNome);
+    
+    if (anoId) {
+        carregarDetalhes($('#tipo').val(), $('#marca').val(), $('#modelo').val(), anoId);
+        $('#etapa3 input, #etapa3 select').not('[readonly]').prop('disabled', false);
+        $('#etapa2').removeClass('hidden');
+        updateProgress(2);
+    } else {
+        $('#etapa3 input, #etapa3 select').prop('disabled', true);
+    }
+});
+
+function carregarMarcas(tipo) {
+    showLoading();
+    
+    $.get(`/api/marcas/${tipo}`)
+        .done(function(marcas) {
+            let options = '<option value="">Selecione a marca</option>';
+            marcas.forEach(function(marca) {
+                options += `<option value="${marca.codigo}">${marca.nome}</option>`;
+            });
+            $('#marca').html(options);
+        })
+        .fail(function() {
+            alert('Erro ao carregar marcas');
+        })
+        .always(function() {
+            hideLoading();
+        });
+}
+
+function carregarModelos(tipo, marcaId) {
+    showLoading();
+    
+    $.get(`/api/modelos/${tipo}/${marcaId}`)
+        .done(function(modelos) {
+            let options = '<option value="">Selecione o modelo</option>';
+            modelos.forEach(function(modelo) {
+                options += `<option value="${modelo.codigo}">${modelo.nome}</option>`;
+            });
+            $('#modelo').html(options);
+        })
+        .fail(function() {
+            alert('Erro ao carregar modelos');
+        })
+        .always(function() {
+            hideLoading();
+        });
+}
+
+function carregarAnos(tipo, marcaId, modeloId) {
+    showLoading();
+    
+    $.get(`/api/anos/${tipo}/${marcaId}/${modeloId}`)
+        .done(function(anos) {
+            let options = '<option value="">Selecione a versão</option>';
+            anos.forEach(function(ano) {
+                options += `<option value="${ano.codigo}">${ano.nome}</option>`;
+            });
+            $('#versao').html(options);
+        })
+        .fail(function() {
+            alert('Erro ao carregar versões');
+        })
+        .always(function() {
+            hideLoading();
+        });
+}
+
+function carregarDetalhes(tipo, marcaId, modeloId, anoId) {
+    showLoading();
+    
+    $.get(`/api/detalhes/${tipo}/${marcaId}/${modeloId}/${anoId}`)
+        .done(function(detalhes) {
+            $('#anoModelo').val(detalhes.AnoModelo);
+            $('#combustivel').val(detalhes.Combustivel);
+            $('#motor').val(detalhes.SiglaCombustivel);
+            
+            // Extrair portas se disponível
+            if (detalhes.Modelo && detalhes.Modelo.includes('Portas')) {
+                const match = detalhes.Modelo.match(/(\d+)\s*Portas?/i);
+                if (match) {
+                    $('#portas').val(match[1]);
+                }
+            }
+        })
+        .fail(function() {
+            alert('Erro ao carregar detalhes');
+        })
+        .always(function() {
+            hideLoading();
+        });
+}
+
+function salvarVeiculo() {
+    showLoading();
+    
+    const formData = new FormData($('#veiculoForm')[0]);
+    
+    fetch('/veiculo/salvar', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (response.ok) {
+            hideLoading();
+            fecharModal();
+            location.reload();
+        } else {
+            throw new Error('Erro ao salvar veículo');
+        }
+    })
+    .catch(error => {
+        hideLoading();
+        alert('Erro ao salvar veículo: ' + error.message);
+    });
+}
+
+function carregarDadosVeiculo(veiculoId) {
+    // Esta função seria implementada para carregar dados do veículo para edição
+    // Por enquanto, vamos deixar como placeholder
+    console.log('Carregando dados do veículo:', veiculoId);
+}
+
 function toggleVeiculo(id) {
     showLoading();
     
@@ -242,6 +736,29 @@ function excluirVeiculo(id) {
             hideLoading();
             if (response.ok) {
                 location.reload();
+            } else {
+                alert('Erro ao excluir veículo');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            alert('Erro ao excluir veículo');
+        });
+    }
+}
+
+// Fechar modal com ESC
+$(document).keyup(function(e) {
+    if (e.key === "Escape") {
+        fecharModal();
+    }
+});
+
+// Auto-refresh a cada 5 minutos
+setInterval(function() {
+    location.reload();
+}, 300000);
+</script>.reload();
             } else {
                 alert('Erro ao excluir veículo');
             }
